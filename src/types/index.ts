@@ -44,8 +44,29 @@ export interface FilteredReview {
   link: string;
   description: string;
   bloggername: string;
+  bloggerlink: string;
   postdate: string;
   adScore: number; // 0~100, 높을수록 광고 가능성 높음
   isAd: boolean;
   matchedKeywords: string[];
+  sentiment: "positive" | "negative" | "neutral";
+  rating: number; // 1~5점 (원본)
+  calibratedRating: number; // 1~5점 (블로거 성향 보정)
+  matchCount: number; // 감성 키워드 매칭 수 (0~1이면 판단 불가)
+  relevanceScore: number; // 0~100
+  isRelevant: boolean;
+}
+
+// 감성 분석 요약
+export interface SentimentSummary {
+  positive: number;
+  negative: number;
+  neutral: number;
+  total: number;
+  positiveRate: number;
+  negativeRate: number;
+  neutralRate: number;
+  score: number;
+  averageRating: number; // 1~5 보정 평균 별점
+  ratingDistribution: number[]; // [1점수, 2점수, 3점수, 4점수, 5점수]
 }
