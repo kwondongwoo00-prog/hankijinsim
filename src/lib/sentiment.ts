@@ -6,7 +6,9 @@ const lexiconEntries = Object.entries(knuLexicon as Record<string, number>)
   .sort((a, b) => b[0].length - a[0].length); // 긴 키워드 우선 매칭
 
 // 부정어 목록
-const NEGATION_WORDS = ["안", "못", "없", "아니", "안 ", "못 "];
+// "안"/"못" 단독은 지명(안양, 안산)이나 복합어에서 오매칭되므로
+// 공백 포함 버전("안 ", "못 ")만 사용
+const NEGATION_WORDS = ["없", "아니", "안 ", "못 "];
 
 // "아니고", "아니라", "아닌" 등은 "X가 아니라 Y다" 구문 → Y를 반전하면 안 됨
 const NEGATION_CONJUNCTION_SUFFIXES = ["고", "라", "ㄴ", "야", "지"];
@@ -81,10 +83,11 @@ function applyNegation(text: string, matchedWords: { word: string; score: number
         }
       }
 
-      // 부정어 뒤 20자 이내 (약 2토큰)의 감성 단어 점수 반전
+      // 부정어 뒤 10자 이내의 감성 단어 점수 반전
+      // (한국어 안/못 부정은 바로 뒤 단어에 적용 → 범위 좁게 유지)
       for (const match of matchedWords) {
         const distance = match.index - (negIdx + neg.length);
-        if (distance >= 0 && distance <= 20) {
+        if (distance >= 0 && distance <= 10) {
           match.score = -match.score;
         }
       }
@@ -106,6 +109,72 @@ function applyNegation(text: string, matchedWords: { word: string; score: number
         if (distance >= 0 && distance <= 25 && match.score < 0) {
           match.score = 0; // 부정적 감성을 중립으로 중화
         }
+      }
+    }
+  }
+}
+
+// 모든 축 키워드를 합친 리스트 (부정 단어의 맥락 판단용)
+const ALL_AXIS_KEYWORDS = [
+  ...TASTE_KEYWORDS, ...PRICE_KEYWORDS, ...SERVICE_KEYWORDS, ...ATMOSPHERE_KEYWORDS,
+];
+
+/**
+ * 부정 단어의 맥락을 분석하여 거짓 부정을 중화합니다.
+ * 1. 가정법 ~면: "부족하면 추가로 시키면 돼요" → 실제 불만 아님
+ * 2. 가능성 ~ㄹ 수 있: "느끼할 수 있는데" → 가정, 실제 경험 아님
+ * 3. 대조 해소 ~는데/~지만: "느끼한데 사이드가 잡아줘서" → 해소된 불만
+ * 4. 축 무관 부정: 맛/서비스/분위기/가격과 관련 없으면 중화
+ */
+function applyContextFilters(
+  text: string,
+  matchedWords: { word: string; score: number; index: number; axis: Axis }[]
+) {
+  for (const match of matchedWords) {
+    if (match.score >= 0) continue; // 긍정/중립은 스킵
+
+    const afterStart = match.index + match.word.length;
+
+    // 1. 가정법 ~면: 부정 단어 바로 뒤에 "면"이 오면 가정법
+    const suffix = text.substring(afterStart, afterStart + 4);
+    if (/^.{0,2}면/.test(suffix)) {
+      match.score = 0;
+      continue;
+    }
+
+    // 2. 가능성 "수 있": 부정 단어 뒤 20자 내에 "수 있"/"수가 있" 패턴
+    const possibilityWindow = text.substring(afterStart, afterStart + 20);
+    if (/수\s?있|수가\s?있/.test(possibilityWindow)) {
+      match.score = 0;
+      continue;
+    }
+
+    // 3. 대조 해소: 부정 뒤 25자 내 대조 접속사(는데/지만 등) + 그 뒤 긍정 단어
+    const contrastWindow = text.substring(afterStart, afterStart + 25);
+    const contrastMatch = contrastWindow.match(/(는데|ㄴ데|한데|은데|지만)/);
+    if (contrastMatch && contrastMatch.index !== undefined) {
+      const resolveStart = afterStart + contrastMatch.index + contrastMatch[0].length;
+      const hasPositiveResolution = matchedWords.some(
+        (m) => m.score > 0 && m.index >= resolveStart && m.index < resolveStart + 30
+      );
+      if (hasPositiveResolution) {
+        match.score = 0;
+        continue;
+      }
+    }
+
+    // 4. 축 무관 부정: 부정 단어 자체가 축 키워드가 아니면, 근처에 축 키워드 필요
+    const isAxisSpecific = ALL_AXIS_KEYWORDS.some(
+      (k) => match.word.includes(k) || k.includes(match.word)
+    );
+    if (!isAxisSpecific) {
+      const windowStart = Math.max(0, match.index - 30);
+      const windowEnd = Math.min(text.length, afterStart + 30);
+      const contextWindow = text.substring(windowStart, windowEnd);
+      const hasAxisContext = ALL_AXIS_KEYWORDS.some((k) => contextWindow.includes(k));
+      if (!hasAxisContext) {
+        match.score = 0;
+        continue;
       }
     }
   }
@@ -161,7 +230,7 @@ export function analyzeReviewSentiment(text: string): DetailedSentimentResult {
           const nextChar = idx + 1 < lowerText.length ? lowerText.charCodeAt(idx + 1) : 0;
           const prevIsKorean = prevChar >= 0xAC00 && prevChar <= 0xD7A3;
           const nextIsKorean = nextChar >= 0xAC00 && nextChar <= 0xD7A3;
-          if (prevIsKorean && nextIsKorean) continue;
+          if (prevIsKorean || nextIsKorean) continue;
         }
 
         matchedPositions.add(idx);
@@ -177,6 +246,9 @@ export function analyzeReviewSentiment(text: string): DetailedSentimentResult {
 
   // 부정어 처리
   applyNegation(lowerText, matchedWords);
+
+  // 맥락 기반 거짓 부정 필터링
+  applyContextFilters(lowerText, matchedWords);
 
   // 축별 점수 계산
   const axisScores: Record<Axis, { sum: number; count: number }> = {
@@ -221,14 +293,13 @@ export function analyzeReviewSentiment(text: string): DetailedSentimentResult {
   let rating: number;
   if (totalOpinionated === 0) {
     rating = 3; // 판단 불가
-  } else if (negativeCount === 0 && positiveCount > 0) {
-    rating = 5; // 긍정만 존재
   } else {
     const posRatio = positiveCount / totalOpinionated;
-    if (posRatio >= 0.65) rating = 4;       // 대체로 만족, 살짝 아쉬움
-    else if (posRatio >= 0.40) rating = 3;  // 혼합
+    if (posRatio >= 0.90) rating = 5;      // 거의 완벽 (노이즈 1~2개 허용)
+    else if (posRatio >= 0.65) rating = 4; // 대체로 만족, 살짝 아쉬움
+    else if (posRatio >= 0.40) rating = 3; // 혼합
     else if (hasStrongNegative && posRatio < 0.20) rating = 1; // 최악+분노
-    else rating = 2;                         // 불만족
+    else rating = 2;                        // 불만족
   }
 
   // -100 ~ +100 정규화
