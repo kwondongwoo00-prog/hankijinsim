@@ -305,10 +305,11 @@ export function analyzeReviewSentiment(text: string): DetailedSentimentResult {
   // -100 ~ +100 정규화
   const sentimentScore = Math.max(-100, Math.min(100, Math.round(avgScore * 50)));
 
+  // sentiment를 rating 기준으로 통일 (별점과 감성 분류 일치)
   let sentiment: ReviewSentiment;
-  if (avgScore > 0.2) {
+  if (rating >= 4) {
     sentiment = "positive";
-  } else if (avgScore < -0.2) {
+  } else if (rating <= 2) {
     sentiment = "negative";
   } else {
     sentiment = "neutral";
