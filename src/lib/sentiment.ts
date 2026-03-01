@@ -153,6 +153,17 @@ export function analyzeReviewSentiment(text: string): DetailedSentimentResult {
       }
 
       if (!overlapping) {
+        // 1글자 단어는 복합어 내부 매칭(거짓 양성) 방지
+        // 예: "타"(-1)가 "브레이크타임"에서 매칭되는 것을 막음
+        // 앞뒤 문자가 한글이면 복합어 일부로 판단하여 스킵
+        if (word.length === 1) {
+          const prevChar = idx > 0 ? lowerText.charCodeAt(idx - 1) : 0;
+          const nextChar = idx + 1 < lowerText.length ? lowerText.charCodeAt(idx + 1) : 0;
+          const prevIsKorean = prevChar >= 0xAC00 && prevChar <= 0xD7A3;
+          const nextIsKorean = nextChar >= 0xAC00 && nextChar <= 0xD7A3;
+          if (prevIsKorean && nextIsKorean) continue;
+        }
+
         matchedPositions.add(idx);
         matchedWords.push({
           word,
@@ -214,7 +225,7 @@ export function analyzeReviewSentiment(text: string): DetailedSentimentResult {
     rating = 5; // 긍정만 존재
   } else {
     const posRatio = positiveCount / totalOpinionated;
-    if (posRatio >= 0.70) rating = 4;       // 대체로 만족, 살짝 아쉬움
+    if (posRatio >= 0.65) rating = 4;       // 대체로 만족, 살짝 아쉬움
     else if (posRatio >= 0.40) rating = 3;  // 혼합
     else if (hasStrongNegative && posRatio < 0.20) rating = 1; // 최악+분노
     else rating = 2;                         // 불만족

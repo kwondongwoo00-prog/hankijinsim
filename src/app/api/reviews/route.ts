@@ -4,6 +4,8 @@ import { filterReviews } from "@/lib/filter";
 import { analyzeSentimentSummary } from "@/lib/sentiment";
 import { calibrateReviews } from "@/lib/blogger-calibration";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const query = searchParams.get("query");
@@ -20,8 +22,8 @@ export async function GET(request: NextRequest) {
     // 1. 네이버 블로그 검색
     const data = await searchBlogReviews(query, 300, address);
 
-    // 2. 필터링 (광고 탐지 + 관련성 + 감성 분석)
-    const filtered = filterReviews(data.items, query);
+    // 2. 필터링 (블로그 본문 크롤링 + 광고 탐지 + 관련성 + 감성 분석)
+    const filtered = await filterReviews(data.items, query);
 
     // 3. 블로거 캘리브레이션 (과거 리뷰 기반 점수 보정)
     const calibrated = await calibrateReviews(filtered);

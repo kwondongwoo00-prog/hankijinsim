@@ -1,6 +1,7 @@
 import { NaverBlogItem, FilteredReview } from "@/types";
 import { analyzeReviewSentiment } from "@/lib/sentiment";
 import { calculateRelevance } from "@/lib/relevance";
+import { fetchBlogContents } from "@/lib/blog-scraper";
 
 // 확정 광고 키워드: 하나만 매칭돼도 즉시 광고 판정
 const DEFINITIVE_AD_KEYWORDS = [
@@ -140,11 +141,12 @@ function calculateAdScore(text: string): {
 
 /**
  * 네이버 블로그 검색 결과를 필터링하여 광고 점수, 관련성, 별점과 함께 반환합니다.
+ * 블로그 본문을 크롤링하여 분석 정확도를 높입니다.
  */
-export function filterReviews(
+export async function filterReviews(
   items: NaverBlogItem[],
   restaurantName: string
-): FilteredReview[] {
+): Promise<FilteredReview[]> {
   // 1. HTML 태그 제거
   const cleaned = items.map((item) => ({
     ...item,
@@ -160,20 +162,35 @@ export function filterReviews(
     return true;
   });
 
-  // 3. 각 리뷰에 광고 점수, 관련성, 감성 분석 적용
+  // 3. 블로그 본문 크롤링 (최대 100개, 병렬 8개)
+  //    300개 전부 크롤링하면 너무 느리므로 상위 100개만 크롤링
+  //    나머지는 title+description 폴백 사용
+  const MAX_SCRAPE = 100;
+  const blogUrls = deduped.slice(0, MAX_SCRAPE).map((item) => item.link);
+  const blogContents = await fetchBlogContents(blogUrls, 8);
+
+  // 4. 각 리뷰에 광고 점수, 관련성, 감성 분석 적용
   const results: FilteredReview[] = deduped.map((item) => {
-    const combinedText = `${item.title} ${item.description}`;
+    // 본문이 있으면 본문 사용, 없으면 title+description 폴백
+    const fullText = blogContents.get(item.link);
+    const analysisText = fullText
+      ? `${item.title} ${fullText}`
+      : `${item.title} ${item.description}`;
+
+    // 관련성은 title+description으로 판단 (본문은 너무 길어 노이즈 가능)
+    const relevanceText = `${item.title} ${item.description}`;
 
     const { score: adScore, matchedKeywords, isDefinitiveAd } =
-      calculateAdScore(combinedText);
+      calculateAdScore(analysisText);
 
     const { relevanceScore, isRelevant } = calculateRelevance(
-      combinedText,
+      relevanceText,
       restaurantName,
       item.bloggername
     );
 
-    const { sentiment, rating, matchCount } = analyzeReviewSentiment(combinedText);
+    const { sentiment, rating, matchCount } =
+      analyzeReviewSentiment(analysisText);
 
     return {
       title: item.title,
