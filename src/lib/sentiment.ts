@@ -284,6 +284,22 @@ export function analyzeReviewSentiment(text: string): DetailedSentimentResult {
     }
   }
 
+  // 평가 척도 패턴 중화: "비추/추천/강추" 같은 평가 기준 나열은 실제 의견이 아님
+  // 예: "⭐ 비추 / 추천 / 강추 ⭐" → "비추"가 부정으로 잡히는 것 방지
+  const rubricPattern = /비추.{0,5}추천.{0,5}강추/;
+  if (rubricPattern.test(lowerText)) {
+    const rubricMatch = lowerText.match(rubricPattern);
+    if (rubricMatch && rubricMatch.index !== undefined) {
+      const rubricStart = rubricMatch.index;
+      const rubricEnd = rubricStart + rubricMatch[0].length;
+      for (const match of matchedWords) {
+        if (match.index >= rubricStart && match.index < rubricEnd) {
+          match.score = 0;
+        }
+      }
+    }
+  }
+
   // 부정어 처리
   applyNegation(lowerText, matchedWords);
 

@@ -8,6 +8,7 @@ const DEFINITIVE_AD_KEYWORDS = [
   "협찬",
   "체험단",
   "원고료",
+  "원고비",
   "#광고",
   "광고임을",
   "광고입니다",
@@ -17,13 +18,18 @@ const DEFINITIVE_AD_KEYWORDS = [
   "대가를 받",
   "대가성",
   "소정의 원고료",
+  "제공받아 작성",
+  "제공받았습니다",
+  "제공받아 리뷰",
+  "뒷광고",
+  "리뷰단",
 ];
 
 // 누적 광고 키워드: 점수 합산으로 판단
 const AD_KEYWORDS: { keyword: string; weight: number }[] = [
   { keyword: "광고", weight: 15 },
-  { keyword: "제공받", weight: 25 },
-  { keyword: "제공 받", weight: 25 },
+  { keyword: "제공받", weight: 30 },
+  { keyword: "제공 받", weight: 30 },
   { keyword: "소정의", weight: 20 },
   { keyword: "무료로 제공", weight: 25 },
   { keyword: "무상 제공", weight: 25 },
@@ -36,6 +42,8 @@ const AD_KEYWORDS: { keyword: string; weight: number }[] = [
   { keyword: "지원 받", weight: 20 },
   { keyword: "초대받", weight: 15 },
   { keyword: "초대 받", weight: 15 },
+  { keyword: "초청받", weight: 20 },
+  { keyword: "초청 받", weight: 20 },
   { keyword: "방문체험", weight: 25 },
   { keyword: "맛집탐방단", weight: 25 },
   { keyword: "서포터즈", weight: 20 },
@@ -47,6 +55,10 @@ const AD_KEYWORDS: { keyword: string; weight: number }[] = [
   { keyword: "파워블로거", weight: 15 },
   { keyword: "본 포스팅은", weight: 10 },
   { keyword: "본 게시글은", weight: 10 },
+  { keyword: "제공해 주셔서", weight: 20 },
+  { keyword: "제공해주셔서", weight: 20 },
+  { keyword: "소비자 체험", weight: 20 },
+  { keyword: "리뷰어", weight: 15 },
 ];
 
 // 은근 광고 신호: 명시적이진 않지만 마케팅 캠페인 가능성
