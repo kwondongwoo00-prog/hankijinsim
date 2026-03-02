@@ -67,6 +67,7 @@ export interface SentimentSummary {
   negativeRate: number;
   neutralRate: number;
   score: number;
+  grade: string; // 맛집 확정 / 맛집 인정 / 괜찮은 곳 / 호불호 갈림 / 평가 낮음 / 비추천
   averageRating: number; // 1~5 보정 평균 별점
   ratingDistribution: number[]; // [1점수, 2점수, 3점수, 4점수, 5점수]
 }

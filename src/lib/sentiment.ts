@@ -1,4 +1,4 @@
-import { FilteredReview } from "@/types";
+import { FilteredReview, SentimentSummary } from "@/types";
 import knuLexicon from "@/data/knu-lexicon.json";
 
 // KNU 감성사전 로드 (Map으로 변환하여 빠른 조회)
@@ -385,19 +385,7 @@ export function analyzeReviewSentiment(text: string): DetailedSentimentResult {
   };
 }
 
-export interface SentimentResult {
-  positive: number;
-  negative: number;
-  neutral: number;
-  total: number;
-  positiveRate: number;
-  negativeRate: number;
-  neutralRate: number;
-  score: number; // 0~100 종합 점수
-  grade: string;
-  averageRating: number; // 1~5 평균 별점
-  ratingDistribution: number[]; // [1점수, 2점수, 3점수, 4점수, 5점수]
-}
+// SentimentSummary는 @/types에서 import
 
 function getGrade(rating: number): string {
   if (rating >= 4.5) return "맛집 확정";
@@ -469,7 +457,7 @@ function calculateCredibility(reviews: FilteredReview[]): number {
  */
 export function analyzeSentimentSummary(
   reviews: FilteredReview[]
-): SentimentResult {
+): SentimentSummary {
   const realReviews = reviews.filter((r) => !r.isAd && r.isRelevant);
   const total = realReviews.length;
 

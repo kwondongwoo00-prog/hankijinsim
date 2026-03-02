@@ -62,15 +62,6 @@ function StarDisplay({ rating }: { rating: number }) {
   return <span className="text-2xl">{stars}</span>;
 }
 
-function getRatingLabel(rating: number): string {
-  if (rating >= 4.5) return "맛집 확정!";
-  if (rating >= 3.8) return "맛집 인정";
-  if (rating >= 3.0) return "괜찮은 곳";
-  if (rating >= 2.3) return "호불호 갈림";
-  if (rating >= 1.5) return "평가 낮음";
-  return "비추천";
-}
-
 function getRatingColor(rating: number): string {
   if (rating >= 3.8) return "text-green-600";
   if (rating >= 3.0) return "text-orange-500";
@@ -163,7 +154,7 @@ export default function RestaurantPage() {
                 {sentiment.averageRating}점
               </p>
               <p className={`text-sm ${getRatingColor(sentiment.averageRating)}`}>
-                {getRatingLabel(sentiment.averageRating)}
+                {sentiment.grade}
               </p>
             </div>
           </div>
