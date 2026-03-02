@@ -83,12 +83,45 @@ function applyNegation(text: string, matchedWords: { word: string; score: number
         }
       }
 
-      // 부정어 뒤 10자 이내의 감성 단어 점수 반전
-      // (한국어 안/못 부정은 바로 뒤 단어에 적용 → 범위 좁게 유지)
-      for (const match of matchedWords) {
-        const distance = match.index - (negIdx + neg.length);
-        if (distance >= 0 && distance <= 10) {
-          match.score = -match.score;
+      // 부정어 종류에 따라 다른 방향/범위 적용
+      if (neg === "안 " || neg === "못 ") {
+        // "안"/"못"은 바로 뒤 서술어 하나만 반전 (절 경계 초과 금지)
+        // "안 느끼하고 고소해요" → "느끼하"만 반전, "고소"는 별개 절
+        let closestMatch: (typeof matchedWords)[0] | null = null;
+        let closestDist = Infinity;
+        for (const match of matchedWords) {
+          const distance = match.index - (negIdx + neg.length);
+          if (distance >= 0 && distance <= 10 && distance < closestDist) {
+            closestDist = distance;
+            closestMatch = match;
+          }
+        }
+        if (closestMatch) {
+          closestMatch.score = -closestMatch.score;
+        }
+      } else if (neg === "없") {
+        // "없다"는 SOV 어순상 앞에 오는 논항을 부정
+        // "느끼함이 없는데" → "느끼"(앞)를 반전
+        let closestMatch: (typeof matchedWords)[0] | null = null;
+        let closestDist = Infinity;
+        for (const match of matchedWords) {
+          const matchEnd = match.index + match.word.length;
+          const backDist = negIdx - matchEnd;
+          if (backDist >= 0 && backDist <= 10 && backDist < closestDist) {
+            closestDist = backDist;
+            closestMatch = match;
+          }
+        }
+        if (closestMatch) {
+          closestMatch.score = -closestMatch.score;
+        }
+      } else {
+        // "아니": 기존 순방향 로직
+        for (const match of matchedWords) {
+          const distance = match.index - (negIdx + neg.length);
+          if (distance >= 0 && distance <= 10) {
+            match.score = -match.score;
+          }
         }
       }
     }
@@ -145,6 +178,13 @@ function applyContextFilters(
     // 2. 가능성 "수 있": 부정 단어 뒤 20자 내에 "수 있"/"수가 있" 패턴
     const possibilityWindow = text.substring(afterStart, afterStart + 20);
     if (/수\s?있|수가\s?있/.test(possibilityWindow)) {
+      match.score = 0;
+      continue;
+    }
+
+    // 2-1. 기대 반전 "~줄 알았는데/~ㄹ 줄 알았는데": 예상이 빗나감
+    // "오래 걸릴 줄 알았는데 그리 오래 걸리지 않았어요"
+    if (/줄\s?알았/.test(possibilityWindow)) {
       match.score = 0;
       continue;
     }
